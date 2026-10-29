@@ -670,7 +670,8 @@ _REASONING_CARRIER_ROUTES: tuple = (
     (frozenset(), frozenset({"mistral", "groq", "cerebras", "sambanova"}),
      ("mistral.ai", "groq.com", "cerebras.ai", "sambanova.ai", "hunyuan.cloud.tencent.com")),
     # Fireworks' ChatMessage schema is additionalProperties:false with reasoning_content only.
-    (frozenset({RC}), frozenset({"fireworks"}), ("fireworks.ai",)),
+    # WandB inference endpoints deserialize with serde where reasoning is an alias for reasoning_content.
+    (frozenset({RC}), frozenset({"fireworks", "wandb"}), ("fireworks.ai", "api.inference.wandb.ai", "wandb.ai")),
     # OpenRouter-format gateways read the unified array, the string and the alias.
     (_ALL_CARRIERS, frozenset({"openrouter", "kilocode", "ai-gateway", "nous"}),
      ("openrouter.ai", "kilo.ai", "ai-gateway.vercel.sh", "nousresearch.com")),

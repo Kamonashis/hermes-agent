@@ -394,3 +394,23 @@ class TestCoerceToolArgsNested:
         args = {"todos": [_json.dumps({"id": "1", "content": "x", "status": "pending"})]}
         result = coerce_tool_args("todo_list", args)
         assert result["todos"][0] == {"id": "1", "content": "x", "status": "pending"}
+
+    def test_unescaped_backslashes_repaired_in_json(self):
+        """Unescaped backslashes in JSON strings (e.g. LaTeX, regex) are repaired."""
+        schema = self._array_of_objects_schema()
+        with patch("tools.arg_coercion.registry.get_schema", return_value=schema):
+            # Contains invalid escapes \h (\hat) and \s (\s+)
+            raw = '[{"id": 1, "content": "math: \\hat{y} regex: \\s+"}]'
+            args = {"items": raw}
+            result = coerce_tool_args("test_tool", args)
+            assert isinstance(result["items"], list)
+            assert result["items"][0]["content"] == "math: \\hat{y} regex: \\s+"
+
+    def test_unparseable_object_array_not_wrapped_in_list(self):
+        """Malformed JSON array for an array-of-objects is not wrapped in [str]."""
+        schema = self._array_of_objects_schema()
+        with patch("tools.arg_coercion.registry.get_schema", return_value=schema):
+            raw = '[{"id": unparseable syntax ...'
+            args = {"items": raw}
+            result = coerce_tool_args("test_tool", args)
+            assert result["items"] == raw

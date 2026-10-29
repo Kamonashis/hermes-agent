@@ -8,6 +8,7 @@ conservative: originals are kept whenever a repair is not unambiguous.
 
 import json
 import logging
+import re
 from typing import Any, Dict
 
 from tools.registry import registry
@@ -56,6 +57,13 @@ def coerce_tool_args(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
                     args[key] = coerced
                     continue
                 if value.strip().startswith("["):
+                    items_type = (prop_schema.get("items") or {}).get("type")
+                    if items_type == "object":
+                        logger.warning("coerce_tool_args: %s.%s looks like a JSON array string "
+                                       "of objects but could not be parsed — refusing to wrap "
+                                       "in single-element list to prevent invalid tool arguments.",
+                                       tool_name, key)
+                        continue
                     logger.warning("coerce_tool_args: %s.%s looks like a JSON array string "
                                    "but could not be parsed — model may have emitted a "
                                    "JSON-encoded string instead of a native array. "
@@ -138,7 +146,10 @@ def _normalize_json_strings_for_schema(
         try:
             parsed = json.loads(trimmed)
         except (ValueError, TypeError):
-            return value
+            try:
+                parsed = json.loads(_repair_json_escapes(trimmed))
+            except (ValueError, TypeError):
+                return value
         if not ((isinstance(parsed, list) and expects_array) or (isinstance(parsed, dict) and expects_object)):
             return value
         value = parsed
@@ -198,14 +209,22 @@ def _schema_allows_null(schema: dict | None) -> bool:
                for union_key in ("anyOf", "oneOf"))
 
 
+def _repair_json_escapes(raw: str) -> str:
+    """Escape backslashes that do not form valid JSON escape sequences (RFC 8259)."""
+    return re.sub(r'\\(?![/"\\bfnrtu]|u[0-9a-fA-F]{4})', r'\\\\', raw)
+
+
 def _coerce_json(value: str, expected_python_type: type):
     """json.loads *value* when the schema expects array/object; original string on mismatch."""
     name = expected_python_type.__name__
     try:
         parsed = json.loads(value)
     except (ValueError, TypeError) as exc:
-        logger.warning("coerce_tool_args: failed to parse string as JSON for expected type %s: %s", name, exc)
-        return value
+        try:
+            parsed = json.loads(_repair_json_escapes(value))
+        except (ValueError, TypeError):
+            logger.warning("coerce_tool_args: failed to parse string as JSON for expected type %s: %s", name, exc)
+            return value
     if isinstance(parsed, expected_python_type):
         logger.debug("coerce_tool_args: coerced string to %s via json.loads", name)
         return parsed

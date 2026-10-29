@@ -36,6 +36,10 @@ if TYPE_CHECKING:
 # dispatcher parks the task in ``blocked`` with a reason — prevents retry storms.
 DEFAULT_FAILURE_LIMIT = 2
 
+# Throttle state for memory pressure warnings in the dispatch loop (prevents log flood)
+_LAST_MEMORY_PRESSURE_LOG_TIME: float = 0.0
+_LAST_LOGGED_PRESSURE_LEVEL: Optional[str] = None
+
 # Keep a little wall-clock budget for the worker to observe a terminal timeout
 # and make a terminal board call (kanban_block/kanban_complete/kanban_request_review)
 # before max_runtime_seconds kills it.
@@ -2275,21 +2279,32 @@ def _tick_spawn_budget(
     # Reclaim/promotion already ran, so bookkeeping stays live; deferred tasks
     # wait for a later tick. "unknown" imposes no restriction.
     pressure = _memory_pressure_level()
+    global _LAST_MEMORY_PRESSURE_LOG_TIME, _LAST_LOGGED_PRESSURE_LEVEL
+    now = time.monotonic()
+    should_log = (pressure != _LAST_LOGGED_PRESSURE_LEVEL) or ((now - _LAST_MEMORY_PRESSURE_LOG_TIME) > 1800)
     if pressure == "critical":
         result.memory_pressure = pressure
-        _kb._log.warning(
-            "kanban dispatch: system memory pressure is critical; "
-            "spawning no new workers this tick (deferred, not dropped)"
-        )
+        if should_log:
+            _kb._log.warning(
+                "kanban dispatch: system memory pressure is critical; "
+                "spawning no new workers this tick (deferred, not dropped)"
+            )
+            _LAST_MEMORY_PRESSURE_LOG_TIME = now
+            _LAST_LOGGED_PRESSURE_LEVEL = pressure
         return False, None
     if pressure == "elevated":
         result.memory_pressure = pressure
         if spawn_budget is None or spawn_budget > 1:
-            _kb._log.warning(
-                "kanban dispatch: system memory pressure is elevated; "
-                "limiting to at most 1 new worker this tick"
-            )
+            if should_log:
+                _kb._log.warning(
+                    "kanban dispatch: system memory pressure is elevated; "
+                    "limiting to at most 1 new worker this tick"
+                )
+                _LAST_MEMORY_PRESSURE_LOG_TIME = now
+                _LAST_LOGGED_PRESSURE_LEVEL = pressure
             spawn_budget = 1
+    elif pressure == "ok" and _LAST_LOGGED_PRESSURE_LEVEL in ("critical", "elevated"):
+        _LAST_LOGGED_PRESSURE_LEVEL = "ok"
     return True, spawn_budget
 
 
