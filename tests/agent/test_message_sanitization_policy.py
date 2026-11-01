@@ -163,6 +163,9 @@ class TestReasoningEchoFamily:
         ("xiaomi", None, "https://x", "mimo"),
         ("custom", "MiMo-7B", "https://x", "mimo"),
         ("custom", None, "https://api.xiaomimimo.com/v1", "mimo"),
+        ("wandb", "reflection/Beam-1.0-501B-A23B", "https://api.inference.wandb.ai/v1", "reflection"),
+        ("custom", "Beam-1.0-501B-A23B", "https://x", "reflection"),
+        ("custom", "reflection-70b", "https://x", "reflection"),
         # Ollama has no echo-back requirement: replayed (as reasoning + reasoning_content) but never padded.
         ("ollama-cloud", "kimi-k3", "https://x", None),
         ("custom", "kimi-k3", "https://ollama.com/v1", None),

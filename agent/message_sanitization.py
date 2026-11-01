@@ -656,6 +656,7 @@ _REASONING_ECHO_RULES: tuple = (
     ("mimo", frozenset(), frozenset({"xiaomi"}), ("mimo",), ("api.xiaomimimo.com", "xiaomimimo.com")),
     # Portal stealth model that 400s on a tool-call turn without reasoning_content (f86276d2ebc).
     ("missingno", frozenset(), frozenset(), ("stealth/missingno",), ()),
+    ("reflection", frozenset(), frozenset(), ("reflection", "beam"), ()),
 )
 _REASONING_ECHO_RULE_BY_FAMILY = {rule[0]: rule for rule in _REASONING_ECHO_RULES}
 
